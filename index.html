@@ -4,20 +4,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سعر بيتكوين وCVD</title>
+    <title>سعر بيتكوين وCVD وشارت</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             height: 100vh;
-            background-color: #000000; /* خلفية سوداء */
+            background-color: #000000;
             font-family: Arial, sans-serif;
-            text-align: center;
+            color: #ffffff;
             flex-direction: column;
-            color: #ffffff; /* نص أبيض ليتناسب مع الخلفية السوداء */
         }
 
         .price-container {
@@ -30,11 +29,11 @@
             width: 100%;
             max-width: 400px;
             height: 20px;
-            background-color: #333333; /* لون أخف قليلاً من الخلفية السوداء */
+            background-color: #333333;
             border-radius: 10px;
             overflow: hidden;
             position: relative;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
         }
 
         .cvd-bar .left,
@@ -57,10 +56,65 @@
             top: 0;
             bottom: 0;
             width: 2px;
-            background-color: white; /* شريط أبيض للتمييز */
+            background-color: white;
             transition: left 0.1s linear;
         }
+
+        table {
+            width: 100%;
+            max-width: 400px;
+            border-collapse: collapse;
+            margin-top: 20px;
+            color: white;
+        }
+
+        th,
+        td {
+            border: 1px solid #555;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #444;
+        }
+
+        .buy-row {
+            background-color: rgba(0, 255, 0, 0.2);
+        }
+
+        .sell-row {
+            background-color: rgba(255, 0, 0, 0.2);
+        }
+
+        /* Filter and Button */
+        .filter-container {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .filter-container input {
+            padding: 5px;
+            width: 100px;
+        }
+
+        .filter-container button {
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+            height: 400px;
+        }
     </style>
+    <!-- Include Lightweight Charts library -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 
 <body>
@@ -71,38 +125,112 @@
         <div class="slider" style="left: 50%;"></div>
     </div>
 
-    <script>
-        const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+    <!-- Filter for order size -->
+    <div class="filter-container">
+        عرض الأوامر أكبر من: 
+        <input type="number" id="order-size-filter" value="1000000" /> دولار
+        <button onclick="applyFilter()">إدخال</button>
+    </div>
 
-        let totalBuyVolume = 0;
-        let totalSellVolume = 0;
+    <!-- Orders Table -->
+    <table id="orders-table">
+        <thead>
+            <tr>
+                <th>نوع الصفقة</th>
+                <th>الكمية (دولار)</th>
+                <th>الوقت</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+
+    <!-- Bitcoin Chart -->
+    <div class="chart-container" id="chart-container"></div>
+
+    <script>
+        // WebSocket for live price and orders
+        const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+        const ordersTableBody = document.querySelector('#orders-table tbody');
+        const orderSizeFilter = document.getElementById('order-size-filter');
+
+        let totalBuyVolumeUSD = 0; // إجمالي حجم الشراء بالدولار
+        let totalSellVolumeUSD = 0; // إجمالي حجم البيع بالدولار
+
+        // Function to add a row to the table
+        function addOrderToTable(isBuy, dollarValue) {
+            const filterValue = parseFloat(orderSizeFilter.value);
+
+            if (!isNaN(filterValue) && dollarValue < filterValue) return;
+
+            const row = document.createElement('tr');
+            row.classList.add(isBuy ? 'buy-row' : 'sell-row');
+
+            const typeCell = document.createElement('td');
+            typeCell.textContent = isBuy ? 'شراء' : 'بيع';
+
+            const amountCell = document.createElement('td');
+            amountCell.textContent = `${dollarValue} USD`;
+
+            const timeCell = document.createElement('td');
+            const timestamp = new Date().toLocaleTimeString();
+            timeCell.textContent = timestamp;
+
+            row.appendChild(typeCell);
+            row.appendChild(amountCell);
+            row.appendChild(timeCell);
+
+            ordersTableBody.prepend(row);
+            if (ordersTableBody.children.length > 10) {
+                ordersTableBody.removeChild(ordersTableBody.lastElementChild);
+            }
+        }
+
+        // Apply filter when the button is clicked or Enter key is pressed
+        function applyFilter() {
+            const filterValue = parseFloat(orderSizeFilter.value);
+            console.log(`Filter set to: ${filterValue} USD`);
+        }
+
+        // Handle Enter key press
+        orderSizeFilter.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                applyFilter();
+            }
+        });
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             const price = parseFloat(data.p).toFixed(2);
             const quantity = parseFloat(data.q);
-            const isBuy = data.m; // true if buy, false if sell
+            const isBuy = data.m;
 
             document.getElementById('btc-price').textContent = `${price} USDT`;
 
-            if (isBuy) {
-                totalBuyVolume += quantity;
-            } else {
-                totalSellVolume += quantity;
+            const dollarValue = parseFloat((price * quantity).toFixed(2));
+
+            if (!isNaN(dollarValue) && dollarValue > 0) {
+                if (isBuy) {
+                    totalBuyVolumeUSD += dollarValue;
+                } else {
+                    totalSellVolumeUSD += dollarValue;
+                }
+
+                const totalVolumeUSD = totalBuyVolumeUSD + totalSellVolumeUSD;
+                const buyPercentage = (totalBuyVolumeUSD / totalVolumeUSD) * 100;
+                const sellPercentage = 100 - buyPercentage;
+
+                const cvdBar = document.querySelector('.cvd-bar');
+                const leftSection = cvdBar.querySelector('.left');
+                const rightSection = cvdBar.querySelector('.right');
+                const slider = cvdBar.querySelector('.slider');
+
+                leftSection.style.width = `${sellPercentage}%`;
+                rightSection.style.width = `${buyPercentage}%`;
+                slider.style.left = `${sellPercentage}%`;
+
+                addOrderToTable(isBuy, dollarValue);
             }
-
-            const totalVolume = totalBuyVolume + totalSellVolume;
-            const buyPercentage = (totalBuyVolume / totalVolume) * 100;
-            const sellPercentage = 100 - buyPercentage;
-
-            const cvdBar = document.querySelector('.cvd-bar');
-            const leftSection = cvdBar.querySelector('.left');
-            const rightSection = cvdBar.querySelector('.right');
-            const slider = cvdBar.querySelector('.slider');
-
-            leftSection.style.width = `${sellPercentage}%`;
-            rightSection.style.width = `${buyPercentage}%`;
-            slider.style.left = `${sellPercentage}%`;
         };
 
         ws.onerror = (error) => {
@@ -112,6 +240,69 @@
         ws.onclose = () => {
             console.log('WebSocket connection closed.');
         };
+
+        // Fetch Bitcoin data from Binance API
+        async function fetchBitcoinData() {
+            const url = 'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=100';
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                console.error('Failed to fetch data:', response.statusText);
+                return [];
+            }
+
+            const data = await response.json();
+            console.log(data); // تأكد من ظهور البيانات في الكونسول
+
+            if (!Array.isArray(data) || data.length === 0) {
+                console.error('No data received from API');
+                return [];
+            }
+
+            const chartData = data.map(kline => ({
+                time: new Date(kline[0]).getTime() / 1000, // Convert to seconds
+                open: parseFloat(kline[1]),
+                high: parseFloat(kline[2]),
+                low: parseFloat(kline[3]),
+                close: parseFloat(kline[4])
+            }));
+
+            return chartData;
+        }
+
+        // Draw the chart using Lightweight Charts
+        async function drawChart() {
+            const chartData = await fetchBitcoinData();
+
+            if (chartData.length === 0) {
+                console.error('No data to display in the chart');
+                return;
+            }
+
+            const chartContainer = document.getElementById('chart-container');
+            const chart = LightweightCharts.createChart(chartContainer, {
+                width: chartContainer.offsetWidth,
+                height: 400,
+                layout: {
+                    backgroundColor: '#000000',
+                    textColor: '#ffffff'
+                },
+                grid: {
+                    vertLines: {
+                        color: 'rgba(197, 203, 206, 0.5)'
+                    },
+                    horzLines: {
+                        color: 'rgba(197, 203, 206, 0.5)'
+                    }
+                }
+            });
+
+            const candleSeries = chart.addCandlestickSeries();
+            candleSeries.setData(chartData);
+        }
+
+        // Call the function to draw the chart
+        drawChart();
     </script>
 </body>
 
