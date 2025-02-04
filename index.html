@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سعر بيتكوين وCVD</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000000; /* خلفية سوداء */
+            font-family: Arial, sans-serif;
+            text-align: center;
+            flex-direction: column;
+            color: #ffffff; /* نص أبيض ليتناسب مع الخلفية السوداء */
+        }
+
+        .price-container {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .cvd-bar {
+            width: 100%;
+            max-width: 400px;
+            height: 20px;
+            background-color: #333333; /* لون أخف قليلاً من الخلفية السوداء */
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .cvd-bar .left,
+        .cvd-bar .right {
+            height: 100%;
+        }
+
+        .cvd-bar .left {
+            background-color: red;
+            float: left;
+        }
+
+        .cvd-bar .right {
+            background-color: green;
+            float: right;
+        }
+
+        .slider {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: white; /* شريط أبيض للتمييز */
+            transition: left 0.1s linear;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="price-container">سعر البيتكوين: <span id="btc-price">جارٍ التحميل...</span></div>
+    <div class="cvd-bar">
+        <div class="left" style="width: 50%;"></div>
+        <div class="right" style="width: 50%;"></div>
+        <div class="slider" style="left: 50%;"></div>
+    </div>
+
+    <script>
+        const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+
+        let totalBuyVolume = 0;
+        let totalSellVolume = 0;
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const price = parseFloat(data.p).toFixed(2);
+            const quantity = parseFloat(data.q);
+            const isBuy = data.m; // true if buy, false if sell
+
+            document.getElementById('btc-price').textContent = `${price} USDT`;
+
+            if (isBuy) {
+                totalBuyVolume += quantity;
+            } else {
+                totalSellVolume += quantity;
+            }
+
+            const totalVolume = totalBuyVolume + totalSellVolume;
+            const buyPercentage = (totalBuyVolume / totalVolume) * 100;
+            const sellPercentage = 100 - buyPercentage;
+
+            const cvdBar = document.querySelector('.cvd-bar');
+            const leftSection = cvdBar.querySelector('.left');
+            const rightSection = cvdBar.querySelector('.right');
+            const slider = cvdBar.querySelector('.slider');
+
+            leftSection.style.width = `${sellPercentage}%`;
+            rightSection.style.width = `${buyPercentage}%`;
+            slider.style.left = `${sellPercentage}%`;
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket connection closed.');
+        };
+    </script>
+</body>
+
+</html>
